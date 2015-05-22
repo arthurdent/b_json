@@ -8,7 +8,7 @@ Dependencies
 
 A relatively fast native-bash json parser.
 
-Currently, completely incomplete.
+Currently only prints an entirely useless xml-like meta-representation of the data.
 
 watdo?
 ------
