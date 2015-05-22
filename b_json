@@ -15,17 +15,19 @@ b_match() {
 	[[ "${b_json:$b_start:$b_len}" == "$1" ]]
 }
 
-# Debug: create indented blocks
+# Debug: start indented block
 b_startblock() { 
 	b_echo "<${@}>"  
 	b_pad+="\t"
 }
 
+# Debug: end indented block
 b_endblock() { 
 	b_pad=${b_pad:2}
 	b_echo "</$@>" 
 }
 
+# Print indented output
 b_echo() {
 	echo -e "${b_pad}$@"
 }
@@ -118,17 +120,17 @@ b_parse_array() {
  
 }
 
+# Parse a value - true, false, null, string, object, array, number
 b_parse_value() {
 
 	b_startblock "value"
 
 	case "$b_ch" in
-		t|f)       b_parse_boolean ;;
-		n)         b_parse_null    ;;
-		\")        b_parse_string  ;;
-		'{')       b_parse_object  ;;
-		'[')       b_parse_array   ;;
-		[:digit:]) b_parse_number  ;;
+		t|f|n)     b_parse_enum   ;;
+		\")        b_parse_string ;;
+		'{')       b_parse_object ;;
+		'[')       b_parse_array  ;;
+		[:digit:]) b_parse_number ;;
 		*)         b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:6}) ..." ;;
 	esac
 
@@ -138,6 +140,7 @@ b_parse_value() {
 
 }
 
+# Parse a string - "[:char:]*"
 b_parse_string() {
 
 	b_match '"' || b_error "STRING" "'\"'"
@@ -167,7 +170,8 @@ b_parse_number() {
 	:
 }
 
-b_parse_boolean() {
+# true, false 
+b_parse_enum() {
 
 	if b_match 'true' 4 ; then
 		b_echo "boolean: true"
@@ -181,18 +185,12 @@ b_parse_boolean() {
 		return 0
 	fi
 	
-	b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:5} ..."
-
-}
-
-b_parse_null() {
-
 	if b_match 'null' 4 ; then
 		b_echo "NULL"
 		b_pop 4
 		return
 	fi
-
-	b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:4} ..."
+	
+	b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:5} ..."
 
 }
