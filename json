@@ -6,7 +6,6 @@ b_pop() {
 	b_len="${1:-1}"
 	b_json="${b_json:$b_len}"
 	b_ch="${b_json:0:1}"
-	(( ${#b_json} > 0 )) # return
 }
 
 # match [n] [p:-1] [q:-0] : match [n] with [p] characters starting at [q] characters into the stack
@@ -19,19 +18,15 @@ b_match() {
 # Debug: create indented blocks
 b_startblock() { 
 	b_echo "<${@}>"  
-	(( b_indent++ )) 
+	b_pad+="\t"
 }
 
 b_endblock() { 
-	(( b_indent-- )) 
+	b_pad=${b_pad:2}
 	b_echo "</$@>" 
 }
 
 b_echo() {
-	b_pad=""
-	for (( i = 0; i < b_indent; i++ )); do
-		b_pad+="\t"
-	done
 	echo -e "${b_pad}$@"
 }
 
@@ -61,10 +56,11 @@ bjson() {
 	b_json=" $b_json" # prime b_pop hack
 
 	# Iterate over every character
-	while b_pop ; do	
+	while b_pop ; do
 		case "$b_ch" in
 			'{') b_parse_object ;;
 			'[') b_parse_array ;;
+			'') return ;;
 			*) b_error "JSON" "'{' or '['" "'$b_char'" ;;
 		esac
 	done
@@ -78,7 +74,7 @@ b_parse_object() {
 	# Make sure it's an object.
 	b_startblock "object"
 	b_match '{' || b_error "OBJECT" "'{'"
-	b_match '}' 1 1 && b_endblock "object" && break # Dumb corner case
+	b_match '}' 1 1 && b_endblock "object" && return # Dumb corner case
 
 	while b_pop ; do
 
@@ -108,7 +104,7 @@ b_parse_array() {
 	# Make sure this is an array.
 	b_startblock "array"
 	b_match '[' || b_error "ARRAY" "'['"
-	b_match ']' 1 1 && b_endblock "array" && break # Dumb corner case
+	b_match ']' 1 1 && b_endblock "array" && return # Dumb corner case
 
 	while b_pop ; do
 
