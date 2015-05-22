@@ -65,3 +65,5 @@ b_json '{"widget": {
         "onMouseUp": "sun1.opacity = (sun1.opacity / 100) * 90;"
     }
 }}'
+
+b_json '{"test":[42.0,true,false,null,"string",{"object":"value-string"}]}'

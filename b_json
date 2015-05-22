@@ -8,10 +8,10 @@ b_pop() {
 	b_ch="${b_json:0:1}"
 }
 
-# match [n] [p:-1] [q:-0] : match [n] with [p] characters starting at [q] characters into the stack
+# match [n] [p:-0] : match string [n] starting at [q] in the stack
 b_match() {
-	b_len="${2:-1}"
-	b_start="${3:-0}"
+	b_len="${#1}"
+	b_start="${2:-0}"
 	[[ "${b_json:$b_start:$b_len}" == "$1" ]]
 }
 
@@ -168,21 +168,29 @@ b_parse_string() {
 # {int frac, int exp, int frac exp}
 b_parse_number() {
 	
-	# TODO, handle exponent
+	# TODO, handle exponent without following value
 
 	b_startblock "number"
 
-	b_num=""
+	# TODO: b_rmatch?
+	[[ "$b_ch" =~ [0-9] ]] && b_num="$b_ch" || b_error "NUMBER" "'[0-9]' or '.' or 'e'"
+
 	b_dec=""
+	b_exp=""
 	while b_pop; do
 		case "$b_ch" in
 			[0-9])
 				b_num+="$b_ch"
 				;;
 			'.')
-				[[ "$b_dec" ]] && b_error "NUMBER" "'[0-9]'"
+				[[ "$b_dec" ]] && b_error "NUMBER" "'[0-9]' or 'e'"
 				b_dec="on"
 				b_num+="$b_ch"
+				;;
+			'e')
+				[[ "$b_exp" ]] && b_error "NUMBER" "'[0-9]' or '.'"
+				b_dec="on"
+				b_exp="on"
 				;;
 			*)
 				break
@@ -199,19 +207,19 @@ b_parse_number() {
 # true, false 
 b_parse_enum() {
 
-	if b_match 'true' 4 ; then
+	if b_match 'true' ; then
 		b_echo "true"
 		b_pop 4
 		return 0
 	fi
 
-	if b_match 'false' 5 ; then
+	if b_match 'false' ; then
 		b_echo "false"
 		b_pop 5
 		return 0
 	fi
 	
-	if b_match 'null' 4 ; then
+	if b_match 'null' ; then
 		b_echo "NULL"
 		b_pop 4
 		return
