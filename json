@@ -1,242 +1,207 @@
 #!/bin/bash
 
-# Shifts json left 1
-# Removes whitespace
+# pop [n] : remove n-chars from the stack
 # Return false when length is zero
-pop() {
-	
-	json="${json:1}" # remaining to be parsed
-	
-	(( ${#ch} > 0 )) # return
-	
+b_pop() {
+	b_len="${1:-1}"
+	b_json="${b_json:$b_len}"
+	b_ch="${b_json:0:1}"
+	(( ${#b_json} > 0 )) # return
 }
 
-peek() {
-
-	[[ "$@" ]] && echo "${json:0:$@}" || echo "${json:0:1}"
-
-	(( ${#ch} > 0 )) # return
-}
-
-json_init() {
-
-	escape="" is_string=""
-
-	# Remove whitespace from non-strings
-	while IFS= read -rn1 char; do
-		case "$char" in
-			\\) escape="on" ;;&
-			\") [[ "$is_string" ]] && [[ ! "$escape" ]] && is_string="" || is_string="on"; escape="" ;;&
-			*) [[ "$is_string" || "$char" =~ [^[:space:]] ]] && cleaned+="$char" ; escape="" ;;
-		esac
-	done <<< "$@"
-
-	json="$cleaned" ch="${json:0:1}"
-
+# match [n] [p:-1] [q:-0] : match [n] with [p] characters starting at [q] characters into the stack
+b_match() {
+	b_len="${2:-1}"
+	b_start="${3:-0}"
+	[[ "${b_json:$b_start:$b_len}" == "$1" ]]
 }
 
 # Debug: create indented blocks
-b_start() { 
-	b_echo "${@}"  
-	(( indent++ )) 
+b_startblock() { 
+	b_echo "<${@}>"  
+	(( b_indent++ )) 
 }
 
-b_end() { 
-	(( indent-- )) 
-	b_echo "$@" 
+b_endblock() { 
+	(( b_indent-- )) 
+	b_echo "</$@>" 
 }
 
 b_echo() {
-	pad=""
-	for (( i = 0; i < indent; i++ )); do
-		pad+="\t"
+	b_pad=""
+	for (( i = 0; i < b_indent; i++ )); do
+		b_pad+="\t"
 	done
-	echo -e "${pad}$@"
+	echo -e "${b_pad}$@"
 }
 
 # Error: Print to STDERR and exit
-error() {
-	echo "ERROR: $@" >&2
+# Args: type, expected_value, [found_value]
+b_error() {
+	echo "ERROR in $1 -- Expected: $2 -- Found: ${3:-$b_ch}" >&2
 	exit 1
 }
 
 main() {
-	json "$@"
+	bjson "$@"
 }
 
 # Do the thing
-json() {
+bjson() {
 
-	json_init "$@"
+	# Remove whitespace in non-strings
+	while IFS= read -rn1 b_char; do
+		case "$b_char" in
+			\\) b_escape="on" ;;&
+			\") [[ "$b_is_string" ]] && [[ ! "$b_escape" ]] && b_is_string="" || b_is_string="on"; b_escape="" ;;&
+			*) [[ "$b_is_string" || "$b_char" =~ [^[:space:]] ]] && b_json+="$b_char" ; b_escape="" ;;
+		esac
+	done <<< "$@"
 
-	# indent level
-	indent=0
+	b_json=" $b_json" # prime b_pop hack
 
 	# Iterate over every character
-	# take note if json changes in the meanwhile!
-	while [[ "$json" != "" ]] ; do	
-
-		case "$ch" in
-
-			'{')
-				parse_object
-				;;
-			'[')
-				parse_array 
-				;;
-			*)
-				b_echo "[other] : $ch"
-				;;
-
+	while b_pop ; do	
+		case "$b_ch" in
+			'{') b_parse_object ;;
+			'[') b_parse_array ;;
+			*) b_error "JSON" "'{' or '['" "'$b_char'" ;;
 		esac
-
-		next
-
 	done
-
 
 }
 
 
 # Parse an object - {} - string : value [, string : value]
-parse_object() {
+b_parse_object() {
 
 	# Make sure it's an object.
-	b_start "<object>"
-	[[ "$ch" != '{' ]] && error "OBJECT - Expected: '{', found '$ch'"
-	#TODO: [[ "$ch" != "{" ]] && error "OBJECT" "{" "$ch" # - Expected: '{', found '$ch'"
+	b_startblock "object"
+	b_match '{' || b_error "OBJECT" "'{'"
+	b_match '}' 1 1 && b_endblock "object" && break # Dumb corner case
 
-	while next ; do
+	while b_pop ; do
 
 		# string : value [, string: value]
-		parse_string
-		[[ "$ch" != ':' ]] && error "OBJECT - Expected: ':' - Found: '$ch'"
-		next
-		parse_value
+		b_parse_string
+		b_match ':' || b_error "OBJECT" "':'"
+		b_pop
+		b_parse_value
 
 		# Check for remaining members
-		[[ "$ch" == ',' ]] && continue
-		[[ "$ch" == '}' ]] && break
-		error "OBJECT - Expected: ',' or '}' - Found: '$ch'"
+		b_match ',' && continue
+		b_match '}' && break
+		b_error "OBJECT" "',' or '}'"
 
 	done
 
 	# Make sure this object ends.
-	[[ "$ch" != '}' ]] && error "OBJECT - Expected: '}', found '$ch'"
-	b_end "</object>"
-	next
+	b_match '}' || b_error "OBJECT" "',' or '}'"
+	b_endblock "object"
+	b_pop
 
 }
 
 # Parse an array - [] - value [, value]
-parse_array() {
+b_parse_array() {
 	
 	# Make sure this is an array.
-	b_start "<array>"
-	[[ "$ch" != '[' ]] && error "ARRAY - Expected: '[', found '$ch'"
+	b_startblock "array"
+	b_match '[' || b_error "ARRAY" "'['"
+	b_match ']' 1 1 && b_endblock "array" && break # Dumb corner case
 
-	while next ; do
+	while b_pop ; do
 
-		parse_value
-
-		# Check for remaining values
-		[[ "$ch" == ',' ]] && continue
-		[[ "$ch" == ']' ]] && break
-		error "ARRAY - Expected: ',' or ']' - Found: ${json:0:6} ..."
+		b_parse_value
+		b_match ',' && continue
+		b_match ']' && break
+		b_error "ARRAY" "',' or ']'"
 
 	done
 	
 	# Make sure this array ends
-	[[ "$ch" != ']' ]] && error "ARRAY - Expected: ']', found '$ch'"
-	b_end "</array>"
-	next
+	b_match ']' || error "ARRAY" "']'"
+	b_endblock "array"
+	b_pop
  
 }
 
-parse_value() {
+b_parse_value() {
 
-	b_start "<value>"
+	b_startblock "value"
 
-	case "$ch" in
-		\")
-			parse_string
-			;;
-	[:digit:])
-			parse_number
-			;;
-		'{')
-			parse_object
-			;;
-		'[')
-			parse_array
-			;;
-		't'|'f')
-			parse_boolean || error "VALUE - Expected: string, number, object, array, true, false, or null - Found: '${json:0:6} ...'"
-			;;
-		'n')
-			parse_null || error "VALUE - Expected: string, number, object, array, true, false, or null - Found: '${json:0:6} ...'"
-			;;
-		*)
-			error "VALUE - Expected: string, number, object, array, true, false, or null - Found: '${json:0:6} ...'"
-			;;
+	case "$b_ch" in
+		t|f)       b_parse_boolean ;;
+		n)         b_parse_null    ;;
+		\")        b_parse_string  ;;
+		'{')       b_parse_object  ;;
+		'[')       b_parse_array   ;;
+		[:digit:]) b_parse_number  ;;
+		*)         b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:6}) ..." ;;
 	esac
 
-	b_end "</value>"
+	b_endblock "value"
+
+	return 0
 
 }
 
-parse_string() {
+b_parse_string() {
 
-	[[ "$ch" != '"' ]] && error "STRING - Expected: '\"', found '$ch'"
-	b_start "<string>"
-	next # Remove "
+	b_match '"' || b_error "STRING" "'\"'"
+	b_startblock "string"
 
-	# TODO: \"
-	string=${json%%\"*}
-	json=${json#"${string}"}
-	ch="${json:0:1}" # TODO: line technically unecessary, for debugging
-
-	b_echo "$string"
-
-	[[ "$ch" != '"' ]] && error "STRING - Expected: '\"', found '$ch'"
-	b_end "<string>"
-	next # Remove "
-
+	b_string=""
+	while b_pop; do
+		case "$b_ch" in
+			\") [[ ! "$b_escape" ]] && break || b_escape="" ;;
+			\\) b_escape="on"                               ;;&
+			*)  b_string+="$b_ch" ;  b_escape=""          ;;
+		esac
+	done
 	
+	b_echo "$b_string"
+
+	b_match '"' || b_error "STRING" "'\"'"
+	b_endblock "string"
+	b_pop # Remove "
+
+	return 0
+
 }
 
 # {int frac, int exp, int frac exp}
-parse_number() {
+b_parse_number() {
 	:
 }
 
-parse_boolean() {
+b_parse_boolean() {
 
-	value=${json%%[^[:alpha:]]*}
-	json=${json#$value}
-	ch=${json:0:1}
-
-	if [[ "$value" == 'true' ]]; then
+	if b_match 'true' 4 ; then
 		b_echo "boolean: true"
-	elif [[ "$value" == 'false' ]]; then
-		b_echo "boolean: false"
-	else
-		return 1
+		b_pop 4
+		return 0
 	fi
+
+	if b_match 'false' 5 ; then
+		b_echo "boolean: false"
+		b_pop 5
+		return 0
+	fi
+	
+	b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:5} ..."
 
 }
 
-parse_null() {
+b_parse_null() {
 
-	value=${json%%[^[:alpha:]]*}
-	json=${json#$value}
-	ch=${json:0:1}
-
-	if [[ "$value" == 'null' ]]; then
-		b_echo "<null>"
-	else
-		return 1
+	if b_match 'null' 4 ; then
+		b_echo "NULL"
+		b_pop 4
+		return
 	fi
+
+	b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:4} ..."
 
 }
 
