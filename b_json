@@ -168,13 +168,13 @@ b_parse_string() {
 # {int frac, int exp, int frac exp}
 b_parse_number() {
 	
-	# TODO: handle e<null>
-	# TODO: handle .e
+	# TODO: handle numbers correctly
 
 	b_startblock "number"
+	b_num=""
 
-	# TODO: b_rmatch?
-	[[ "$b_ch" =~ [0-9] ]] && b_num="$b_ch" || b_error "NUMBER" "'[0-9]' or '.' or 'e'"
+	b_match '-' && b_num+="$b_ch" # Negative?
+	[[ "$b_ch" =~ [0-9] ]] && b_num+="$b_ch" || b_error "NUMBER" "'[0-9]' or '.' or 'e'" # First number hack
 
 	b_dec=""
 	b_exp=""
@@ -185,13 +185,14 @@ b_parse_number() {
 				;;
 			'.')
 				[[ "$b_dec" ]] && b_error "NUMBER" "'[0-9]' or 'e'"
-				b_dec="on"
 				b_num+="$b_ch"
+				b_dec="on" # Only one decimal in a number
 				;;
-			'e')
+			'e'|'E')
 				[[ "$b_exp" ]] && b_error "NUMBER" "'[0-9]'"
-				b_dec="on"
-				b_exp="on"
+				b_num+="$b_ch"
+				b_dec="on" # No decimals after the exponent
+				b_exp="on" # Only one exponent
 				;;
 			*)
 				break
