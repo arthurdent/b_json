@@ -1,0 +1,216 @@
+#!/bin/bash
+
+# Shifts json left 1
+# Removes whitespace
+# Return false when length is zero
+next() {
+	
+	json="${json:1}"
+
+	# Remove leading whitespace
+	json=${json##+([[:space:]])}
+
+	ch="${json:0:1}"
+	
+	(( ${#ch} > 0 )) # return
+	
+}
+
+push() {
+	json="${ch}${json}"
+}
+
+# Start an indented block with a header
+b_start() {
+	b_echo "${@}"
+	(( indent++ ))
+}
+
+# End an indented block with a footer
+b_end() {
+	(( indent-- ))
+	b_echo "$@"
+}
+
+# Echo block contents with correct indentation
+b_echo() {
+	pad=""
+	for (( i = 0; i < indent; i++ )); do
+		pad+="\t"
+	done
+	echo -e "${ch:-" "} : ${pad}$@"
+	#echo "${pad}$@"
+}
+
+# Print to STDERR and exit
+error() {
+
+	echo "ERROR: $@" >&2
+	exit 1
+
+}
+
+#TODO: Read line by line, (word by word?)
+
+# Do the thing
+parse() {
+
+	shopt -s extglob
+
+	json="$@"
+	ch="${json:0:1}"
+
+	# indent level
+	indent=0
+
+	# Iterate over every character
+	# take note if json changes in the meanwhile!
+	while [[ "$json" != "" ]] ; do	
+
+		case "$ch" in
+
+			'{')
+				parse_object
+				;;
+			'[')
+				# TODO: this part
+				parse_array 
+				;;
+			*)
+				b_echo "[other] : $ch"
+				;;
+
+		esac
+
+		next
+
+	done
+
+	shopt -u extglob
+
+}
+
+
+parse_object() {
+
+	b_start "<object>"
+
+	while next ; do
+		
+		[[ "$ch" == '}' ]] && break
+	
+		[[ "$ch" != '"' ]] && error "OBJECT - Expected: \"string:value\" - Found: \"${json:0:6}...\""
+
+		parse_string
+
+		[[ "$ch" != ':' ]] && error "OBJECT - Expected: ':' - Found: '$ch'"
+
+		next
+		parse_value
+		continue
+
+		[[ "$ch" == ',' ]] && continue
+				
+		error "OBJECT - Expected: ',' or '}' - Found: '$ch'"
+
+	done
+
+	b_end "</object>"
+
+}
+
+parse_string() {
+
+
+	b_start "<string>"
+
+	next # Remove "
+
+	# TODO: \"
+	string=${json%%\"*}
+	json=${json#"${string}"}
+
+	b_echo "$string"
+
+	[[ "$json" == '' ]] && error "STRING - ERROR: expected: \" found: EOF"
+
+	ch="${json:0:1}" # TODO: line unecessary, for debugging
+
+	b_end "<string>"
+	
+	next # Remove "
+
+	
+}
+
+parse_value() {
+
+	b_start "<value>"
+
+	case "$ch" in
+		\")
+			parse_string
+			;;
+	[[:digit:]]*\.[[:digit:]]*)
+			parse_number
+			;;
+		'{')
+			parse_object
+			;;
+		'[')
+			parse_array
+			;;
+		[[:alpha:]]*)
+			value=${json%%[^[:alpha:]]*}
+			json=${json#$value}
+			ch=${json:0:1}
+			case "$value" in
+				'true')
+					b_echo "true"
+					;;
+				'false')
+					b_echo "false"
+					;;
+				'null')
+					b_echo "null"
+					;;
+				*)
+					error "VALUE - Expected: \", [0-9], {, [, true, false, or null - Found: '$value'"
+					;;
+
+			esac
+			;;
+		*)
+			error "VALUE - Expected: \", [0-9], {, [, true, false, or null - Found: '$ch'"
+			;;
+	esac
+
+	b_end "</value>"
+
+}
+
+parse_array() {
+	
+	b_start "<array>"
+
+	while next ; do
+	
+		parse_value
+		
+		[[ "$ch" == ']' ]] && break
+		
+		if [[ "$ch" == ',' ]]; then
+			next
+			parse_value
+			continue
+		fi
+		
+		error "ARRAY - Expected: \"element [, element]\" or ']' - Found: \"${json:0:6}...\""
+
+	done
+
+	b_end "</array>"
+ 
+}
+
+parse "$@"
