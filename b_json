@@ -37,12 +37,8 @@ b_error() {
 	exit 1
 }
 
-main() {
-	bjson "$@"
-}
-
 # Do the thing
-bjson() {
+b_json() {
 
 	# Remove whitespace in non-strings
 	while IFS= read -rn1 b_char; do
@@ -200,5 +196,3 @@ b_parse_null() {
 	b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:4} ..."
 
 }
-
-main "$@"
