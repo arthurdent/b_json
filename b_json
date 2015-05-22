@@ -168,7 +168,8 @@ b_parse_string() {
 # {int frac, int exp, int frac exp}
 b_parse_number() {
 	
-	# TODO, handle exponent without following value
+	# TODO: handle e<null>
+	# TODO: handle .e
 
 	b_startblock "number"
 
@@ -188,7 +189,7 @@ b_parse_number() {
 				b_num+="$b_ch"
 				;;
 			'e')
-				[[ "$b_exp" ]] && b_error "NUMBER" "'[0-9]' or '.'"
+				[[ "$b_exp" ]] && b_error "NUMBER" "'[0-9]'"
 				b_dec="on"
 				b_exp="on"
 				;;
