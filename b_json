@@ -130,7 +130,7 @@ b_parse_value() {
 		\")        b_parse_string ;;
 		'{')       b_parse_object ;;
 		'[')       b_parse_array  ;;
-		[0-9]) b_parse_number ;;
+		[0-9])     b_parse_number ;;
 		*)         b_error "VALUE" "string, number, object, array, true, false, or null" "${b_json:0:6}) ..." ;;
 	esac
 
