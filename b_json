@@ -17,25 +17,25 @@ b_match() {
 
 # Debug: start indented block
 b_startblock() { 
-	b_echo "<${@}>"  
+	b_print "<${@}>"  
 	b_pad+="\t"
 }
 
 # Debug: end indented block
 b_endblock() { 
 	b_pad=${b_pad:2}
-	b_echo "</$@>" 
+	b_print "</$@>" 
 }
 
 # Print indented output
-b_echo() {
-	echo -e "${b_pad}$@"
+b_print() {
+	printf "${b_pad}$@\n"
 }
 
 # Error: Print to STDERR and exit
 # Args: type, expected_value, [found_value]
 b_error() {
-	echo "ERROR in $1 -- Expected: $2 -- Found: ${3:-$b_ch}" >&2
+	printf "ERROR in $1 -- Expected: $2 -- Found: ${3:-$b_ch}\n" >&2
 	exit 1
 }
 
@@ -155,7 +155,7 @@ b_parse_string() {
 		esac
 	done
 	
-	b_echo "$b_string"
+	b_print "$b_string"
 
 	b_match '"' || b_error "STRING" "'\"'"
 	b_endblock "string"
@@ -200,7 +200,7 @@ b_parse_number() {
 		esac
 	done
 
-	b_echo "$b_num"
+	b_print "$b_num"
 
 	b_endblock "number"
 
@@ -210,19 +210,19 @@ b_parse_number() {
 b_parse_enum() {
 
 	if b_match 'true' ; then
-		b_echo "true"
+		b_print "true"
 		b_pop 4
 		return 0
 	fi
 
 	if b_match 'false' ; then
-		b_echo "false"
+		b_print "false"
 		b_pop 5
 		return 0
 	fi
 	
 	if b_match 'null' ; then
-		b_echo "NULL"
+		b_print "NULL"
 		b_pop 4
 		return
 	fi
